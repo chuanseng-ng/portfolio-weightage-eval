@@ -1,0 +1,7 @@
+[project]
+name = "portfolio-weightage-eval"
+version = "0.1.0"
+description = "Evaluates investment portfolio sector weightage and detects skew on a monthly cadence"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
