@@ -260,4 +260,4 @@ portfolio-weightage-eval/
 - All feature work is developed on a dedicated branch and submitted as a pull request.
 - Claude reviews each PR and posts findings as comments — the developer resolves them.
 - No PR is merged if it contains secrets, failing tests, or introduces undefined behaviour at system boundaries.
-- Claude does not push commits or modify files in the repository.
+- Claude does not push commits or modify files in the repository, except for the exempt file patterns listed in "Exceptions — Files Claude May Create or Modify Directly".
