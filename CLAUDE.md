@@ -58,14 +58,114 @@ When acting in any of the three roles, Claude **must** invoke the corresponding 
 
 ---
 
+## Domain Rules & Design Decisions
+
+These are binding decisions established during requirements design. All PRs must conform to these rules.
+
+### Base Currency
+
+All portfolio values are normalised to **SGD** before any calculation. No calculations are performed in mixed currencies.
+
+### Multi-Market Ticker Convention
+
+The project supports three markets. Tickers are auto-detected by suffix:
+
+| Market | Suffix | Example |
+|---|---|---|
+| Singapore (SGX) | `.SI` | `D05.SI` (DBS) |
+| United Kingdom (LSE) | `.L` | `LLOY.L` (Lloyds) |
+| United States (NYSE/NASDAQ) | _(no suffix)_ | `AAPL`, `VOO` |
+
+Market detection is performed at ingestion time and stored on the `Holding` model.
+
+### FX Conversion
+
+Live exchange rates are fetched via yFinance at the start of each run:
+
+| Rate | yFinance symbol |
+|---|---|
+| GBP → SGD | `GBPSGD=X` |
+| USD → SGD | `USDSGD=X` |
+
+FX rates are fetched once per run, cached in memory, and stored in the JSON snapshot and Supabase `fx_rates` table for auditability.
+
+### SGX Sector Fallback Strategy (4-Layer)
+
+For SGX-listed tickers, sector lookup follows this priority order:
+
+1. **yFinance** — attempt `yf.Ticker(ticker).info["sector"]`
+2. **SGX public API** — `https://api.sgx.com/securities/v1.1` (no auth required)
+3. **Static CSV** — `data/sgx_sectors.csv` bundled in the repository
+4. **Unclassified** — if all three sources fail, the holding is tagged `Unclassified` and flagged
+
+This fallback chain applies **only** to `.SI` tickers. US and UK tickers use yFinance directly.
+
+### Sector Taxonomy (13 sectors)
+
+The project uses a fixed taxonomy. Every holding maps to exactly one of:
+
+| # | Sector |
+|---|---|
+| 1 | Technology |
+| 2 | Healthcare |
+| 3 | Financials |
+| 4 | Consumer Discretionary |
+| 5 | Consumer Staples |
+| 6 | Industrials |
+| 7 | Energy |
+| 8 | Materials |
+| 9 | Utilities |
+| 10 | Communication Services |
+| 11 | Real Estate (ex-REITs) |
+| 12 | **REITs** _(standalone — not folded into Financials or Real Estate)_ |
+| 13 | **ETF Broad Market** _(ETFs with no single-sector classification)_ |
+| — | **Unclassified** _(fallback when no sector can be resolved)_ |
+
+> **GICS deviation**: REITs are intentionally broken out as a standalone sector rather than grouped under Financials or Real Estate, reflecting their distinct income and risk profile in SG portfolios.
+
+### SG REIT Special Handling
+
+Any SGX-listed security with REIT in its name or classified as a REIT by any data source must be assigned to the **REITs** sector, not to Financials or Real Estate. This rule overrides yFinance's classification.
+
+### ETF Look-Through (Preferred Method)
+
+For ETF holdings, the preferred approach is **look-through**: map the ETF's underlying holdings to their sectors and apportion the ETF's portfolio weight proportionally across those sectors.
+
+- If look-through data is unavailable, fall back to a single-sector tag (`ETF Broad Market`).
+- The `holdings` entry in the JSON snapshot must record `etf_lookthrough: true/false` to indicate which method was used.
+
+### Per-Sector Overweight Thresholds
+
+Skew detection uses **per-sector thresholds**, not a single global threshold:
+
+| Condition | Threshold |
+|---|---|
+| Technology sector weight | > 35% → WARNING |
+| Financials sector weight | > 40% → WARNING |
+| REITs sector weight | > 30% → WARNING |
+| Any single sector weight | > 40% → WARNING |
+| Single market exposure (US, UK, or SG) | > 70% → WARNING |
+
+The `SKEW_THRESHOLD` env var sets the fallback for the "any single sector" rule (default: 40). Per-sector overrides take precedence.
+
+### Additional Tracked Metrics
+
+Beyond sector weights, each run must compute and store:
+
+- **Market exposure split** — percentage of portfolio value in US / UK / SG markets
+- **Top-holdings concentration** — combined weight of the top 5 holdings as a % of total portfolio
+
+---
+
 ## Architecture & Roadmap
 
 ### High-Level Flow
 
 ```
-[Input]                  [Parse]                  [Evaluate]              [Output]
-Excel file          →    Ticker sector lookup →   Sector weightage    →   JSON report
-Brokerage API            (yFinance / equivalent)  Skew detection          Supabase upload
+[Input]           [Parse+Detect]        [Enrich]                 [Evaluate]              [Output]
+Excel / API  →    Ticker + Market   →   Sector (yF/SGX/CSV)  →  Sector weightage    →   JSON snapshot
+              →   auto-detect       →   FX → SGD             →  Skew detection      →   Supabase upload
+                                                                 Market exposure         Excel report (opt.)
 ```
 
 ### Milestones
@@ -104,14 +204,16 @@ Acceptance criteria:
 **Goal**: Reliably load portfolio data from both supported input sources.
 
 Expected contents:
-- Excel parser: reads a pre-determined column schema (ticker, quantity, purchase price, etc.)
+- Excel parser: reads a pre-determined column schema (ticker, quantity, purchase price, currency, etc.)
 - Brokerage API client: fetches current holdings via the chosen API
-- A unified internal data model (e.g. a `Holding` dataclass or dict schema) that both sources produce
+- **Market auto-detection**: derive market from ticker suffix (`.SI` → SG, `.L` → UK, no suffix → US) and store on each `Holding`
+- A unified internal data model (e.g. a `Holding` dataclass) that both sources produce; must include fields: `ticker`, `market`, `quantity`, `price`, `currency`
 - Input validation and clear error messages for malformed data
-- Unit tests covering valid input, missing columns, and empty portfolios
+- Unit tests covering valid input, missing columns, empty portfolios, and mixed-market tickers
 
 Acceptance criteria:
 - Both ingestion paths produce identical output structures
+- Market field is correctly set for US, UK, and SG tickers
 - Invalid inputs raise descriptive exceptions, not silent failures
 
 ---
@@ -120,14 +222,19 @@ Acceptance criteria:
 **Goal**: Enrich each holding with sector information.
 
 Expected contents:
-- yFinance (or equivalent) integration to look up sector for individual equities
-- ETF-specific handling: fetch underlying sector weightages rather than a single sector label
-- Caching layer to avoid redundant API calls during a single run
-- Graceful handling of missing or unrecognised tickers
-- Unit tests with mocked API responses
+- yFinance integration for US and UK equities; sector mapped to the 13-sector taxonomy
+- **SGX fallback chain** for `.SI` tickers: yFinance → SGX public API (`api.sgx.com/securities/v1.1`) → `data/sgx_sectors.csv` → `Unclassified`
+- **SG REIT override**: any security classified as a REIT must be tagged to the `REITs` sector regardless of yFinance classification
+- **ETF look-through** (preferred): map ETF underlying holdings to their sectors proportionally; fall back to `ETF Broad Market` if look-through data is unavailable; record `etf_lookthrough: true/false` on each holding
+- **FX rate fetch**: at run start, fetch `GBPSGD=X` and `USDSGD=X` via yFinance and cache for the duration of the run
+- In-memory caching layer to avoid redundant API calls during a single run
+- Graceful handling of missing or unrecognised tickers (tag as `Unclassified`, do not raise)
+- Unit tests with mocked API responses; SGX fallback chain tested at each layer
 
 Acceptance criteria:
-- Every holding in the internal model is annotated with sector data or flagged as unresolvable
+- Every holding is annotated with a sector from the 13-sector taxonomy or marked `Unclassified`
+- SGX REIT tickers are never assigned to Financials or Real Estate
+- ETF look-through flag is present on every ETF holding
 - No live API calls made during test execution
 
 ---
@@ -136,13 +243,19 @@ Acceptance criteria:
 **Goal**: Compute portfolio-level sector exposure and flag imbalances.
 
 Expected contents:
-- Aggregation logic: roll up individual holding weights by sector
-- Skew detection: configurable thresholds (e.g. warn if any single sector exceeds 30% of portfolio value)
-- Summary structure containing sector name, absolute weight (%), and deviation from a benchmark or equal-weight baseline
-- Unit tests covering edge cases (single-sector portfolio, all-ETF portfolio, zero-value holdings)
+- **FX normalisation**: convert all holding values to SGD using cached rates before aggregation
+- Aggregation logic: roll up individual holding weights by sector (after ETF look-through expansion)
+- **Market exposure split**: compute US / UK / SG as a percentage of total portfolio value (SGD)
+- **Top-holdings concentration**: combined weight of the top 5 holdings as a % of total portfolio
+- **Per-sector skew detection** using the thresholds defined in Domain Rules:
+  - Tech > 35%, Financials > 40%, REITs > 30%, any single sector > `SKEW_THRESHOLD` (default 40%), any single market > 70%
+- Summary structure: sector name, absolute weight (%), market split (%), top-5 concentration (%), active flags
+- Unit tests covering edge cases (single-sector portfolio, all-ETF portfolio, zero-value holdings, multi-currency portfolio)
 
 Acceptance criteria:
-- Weightages sum to 100% (within floating-point tolerance)
+- All sector weightages sum to 100% (within floating-point tolerance)
+- Market exposure percentages sum to 100%
+- Skew flags fire correctly for each per-sector threshold
 - Skew flags are deterministic and reproducible given identical input
 
 ---
@@ -151,14 +264,36 @@ Acceptance criteria:
 **Goal**: Produce actionable output in the required formats.
 
 Expected contents:
-- JSON report serialisation (human-readable, ISO-8601 timestamps)
-- Supabase upload: upsert report into a designated table with run date as a key
-- Local file output as a fallback when Supabase is not configured
-- Integration tests (can use a Supabase local/test instance or mock the client)
+- **JSON snapshot** serialised to `output/snapshots/YYYY-MM-DD.json` with the following top-level schema:
+  ```json
+  {
+    "metadata": { "run_date": "<ISO-8601>", "base_currency": "SGD" },
+    "fx_rates": { "USDSGD": 1.34, "GBPSGD": 1.70 },
+    "summary": {
+      "sectors": [{ "name": "...", "weight_pct": 0.0, "flag": false }],
+      "markets": [{ "market": "US|UK|SG", "weight_pct": 0.0, "flag": false }],
+      "top5_concentration_pct": 0.0
+    },
+    "holdings": [{ "ticker": "...", "sector": "...", "market": "...", "weight_pct": 0.0, "etf_lookthrough": false }],
+    "flags": [{ "type": "sector|market", "name": "...", "weight_pct": 0.0, "threshold_pct": 0.0 }]
+  }
+  ```
+- **Supabase structured upload** — upsert into 6 tables keyed on `run_date`:
+  - `monthly_summary` — run metadata and top-5 concentration
+  - `sector_weights` — one row per sector per run
+  - `market_weights` — one row per market per run
+  - `holdings` — one row per holding per run
+  - `flags` — one row per active flag per run
+  - `fx_rates` — FX rates used for the run
+- **Supabase Storage** — JSON snapshot and source Excel file uploaded to a designated bucket alongside structured tables
+- **Optional Excel report** — multi-tab workbook: Summary, Holdings, Sector Trend, Market Trend, Flags; generated when `OUTPUT_EXCEL=true`
+- Local JSON file output as a fallback when Supabase is not configured
+- Integration tests (mock the Supabase client; validate JSON schema structure)
 
 Acceptance criteria:
-- JSON schema is consistent across runs
-- Supabase upload is idempotent — re-running the same date does not duplicate records
+- JSON schema is consistent and valid across runs
+- Supabase upload is idempotent — re-running the same date upserts, not duplicates
+- Excel report (when enabled) contains all five tabs with correct data
 
 ---
 
@@ -226,6 +361,14 @@ When Claude reviews a pull request, the following areas are always evaluated:
 | **Supabase** for persistent storage | Hosted Postgres with a simple Python client; suits low-frequency monthly writes |
 | **JSON as primary report format** | Machine-readable, easy to diff, straightforward to load into downstream tools |
 | **Monthly cadence** | Aligned with typical ETF rebalancing cycles; avoids over-reacting to short-term noise |
+| **SGD as base currency** | Portfolio spans US, UK, and SG markets; SGD is the investor's home currency; all values normalised before calculation |
+| **Multi-market ticker suffix convention** | Enables deterministic market auto-detection at ingestion without requiring a separate market field in input data |
+| **yFinance FX rates (`GBPSGD=X`, `USDSGD=X`)** | Fetched from the same library already used for sector data; no additional API dependency |
+| **SGX 4-layer fallback** | yFinance coverage of SGX is incomplete; SGX public API and static CSV ensure SG holdings are never silently misclassified |
+| **REITs as standalone sector** | SG portfolios often hold multiple REITs; grouping them separately reflects their distinct dividend-income profile and regulatory structure |
+| **ETF look-through as preferred method** | Single-sector ETF tags obscure true sector exposure; look-through gives an accurate picture of underlying risk |
+| **Per-sector overweight thresholds** | Different sectors warrant different concentration limits (e.g. REITs are income-focused; stricter limit is appropriate) |
+| **Supabase Storage for file artefacts** | Keeps JSON snapshots and Excel reports alongside structured data in one platform; simplifies audit and retrieval |
 
 ---
 
@@ -238,8 +381,10 @@ All secrets and environment-specific values must be provided via environment var
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_KEY` | Supabase service-role or anon key |
 | `BROKERAGE_API_KEY` | API key for the chosen brokerage integration |
-| `SKEW_THRESHOLD` | Sector weight (%) above which a warning is raised (default: 30) |
+| `BASE_CURRENCY` | Currency all values are normalised to before calculation (default: `SGD`) |
+| `SKEW_THRESHOLD` | Fallback sector weight (%) threshold for "any single sector" rule (default: 40); per-sector overrides defined in Domain Rules take precedence |
 | `OUTPUT_DIR` | Local directory for JSON report files |
+| `OUTPUT_EXCEL` | Set to `true` to generate the optional multi-tab Excel report (default: `false`) |
 
 ---
 
@@ -252,26 +397,32 @@ portfolio-weightage-eval/
 │   │   ├── excel_parser.py      # Excel portfolio loader
 │   │   └── brokerage_client.py  # Brokerage API client
 │   ├── sector/
-│   │   ├── fetcher.py           # yFinance sector lookup
-│   │   └── cache.py             # In-memory/file cache
+│   │   ├── fetcher.py           # yFinance + SGX fallback sector lookup
+│   │   ├── fx.py                # FX rate fetch and conversion (yFinance)
+│   │   └── cache.py             # In-memory cache for sector + FX data
 │   ├── evaluation/
-│   │   ├── calculator.py        # Sector weightage aggregation
-│   │   └── skew_detector.py     # Threshold-based skew detection
+│   │   ├── calculator.py        # Sector weightage aggregation (SGD-normalised)
+│   │   └── skew_detector.py     # Per-sector threshold skew detection
 │   ├── output/
-│   │   ├── reporter.py          # JSON serialisation
-│   │   └── supabase_client.py   # Supabase upload
+│   │   ├── reporter.py          # JSON snapshot serialisation
+│   │   ├── excel_reporter.py    # Optional multi-tab Excel report
+│   │   └── supabase_client.py   # Supabase structured upload + Storage
 │   └── main.py                  # Entry point / orchestration
 ├── tests/
 │   ├── test_excel_parser.py
 │   ├── test_sector_fetcher.py
+│   ├── test_fx.py
 │   ├── test_calculator.py
 │   └── test_reporter.py
 ├── config/
 │   └── settings.py              # Loads and validates env vars
-├── output/                      # Local report files (gitignored)
+├── data/
+│   └── sgx_sectors.csv          # Static SGX sector map (fallback layer 3)
+├── output/
+│   └── snapshots/               # JSON snapshot files (gitignored)
 ├── .env.example
 ├── .gitignore
-├── requirements.txt
+├── pyproject.toml
 ├── CLAUDE.md
 └── README.md
 ```
