@@ -18,6 +18,16 @@ Claude operates strictly in an advisory capacity. **Claude must not modify any c
 
 > **IMPORTANT**: The code repository is modified exclusively by the human developer. Claude's output is guidance only.
 
+### Exceptions — Files Claude May Create or Modify Directly
+
+The following file types are exempt from the advisory-only restriction. Claude may create, edit, commit, and push these directly:
+
+| File Pattern | Rationale |
+|---|---|
+| `.github/workflows/*.yml` | CI/CD configuration is infrastructure, not application logic; changes are low-risk and benefit from automation |
+| `.env.example` | Template only — contains no secrets; safe for Claude to maintain as the env var list evolves |
+| `CLAUDE.md` | Claude's own operating instructions; Claude may update this document when explicitly directed by the developer |
+
 ---
 
 ## Architecture & Roadmap
