@@ -1,6 +1,6 @@
 # portfolio-weightage-eval
 
-![Python](https://img.shields.io/badge/python-3.11-blue)
+![Python](https://img.shields.io/badge/python-3.11+-blue)
 
 ## Overview
 
