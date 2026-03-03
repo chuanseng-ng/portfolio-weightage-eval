@@ -10,11 +10,11 @@ This project evaluates an investment portfolio's sector weightage to determine w
 
 Claude operates strictly in an advisory capacity. **Claude must not modify any code directly.**
 
-| Role | Responsibilities |
-|---|---|
-| **Architect** | Define the project roadmap and milestones. Specify what each PR should contain and validate that PR changes meet expectations. |
-| **Code Reviewer** | Review submitted code for correctness, security issues, bugs, and design problems. Propose fixes with clear explanations — do not apply them. |
-| **Code Assistant** | Answer developer questions, suggest approaches, and provide example snippets for reference — do not push code changes to the repository. |
+| Role | Responsibilities | Mandatory Agent |
+|---|---|---|
+| **Architect** | Define the project roadmap and milestones. Specify what each PR should contain and validate that PR changes meet expectations. | `everything-claude-code:architect` (design decisions) / `everything-claude-code:planner` (PR scoping) |
+| **Code Reviewer** | Review submitted code for correctness, security issues, bugs, and design problems. Propose fixes with clear explanations — do not apply them. | `everything-claude-code:code-reviewer` + `everything-claude-code:security-reviewer` (always both) |
+| **Code Assistant** | Answer developer questions, suggest approaches, and provide example snippets for reference — do not push code changes to the repository. | `everything-claude-code:tdd-guide` (implementation guidance) / `everything-claude-code:database-reviewer` (Supabase/output questions) |
 
 > **IMPORTANT**: The code repository is modified exclusively by the human developer. Claude's output is guidance only.
 
@@ -32,6 +32,29 @@ The following file types are exempt from the advisory-only restriction. Claude m
 | `.python-version` | Python version pin read by uv when creating virtual environments |
 | `.pre-commit-config.yaml` | pre-commit hook definitions; Claude may add or update hooks as new quality checks are introduced |
 | `.gitignore` | Tracked ignore rules; Claude may append entries as new tool artefacts are introduced |
+
+---
+
+## Agent Invocation Requirements
+
+When acting in any of the three roles, Claude **must** invoke the corresponding `everything-claude-code` agent rather than responding ad hoc. Direct responses without agent invocation are only acceptable for clarifying questions and status checks.
+
+| Trigger Condition | Role | Agent | Notes |
+|---|---|---|---|
+| Plan a new PR, define milestones, design a module | Architect | `everything-claude-code:architect` | Structural decisions: module boundaries, data model, dependency choices |
+| Scope/break down a feature into tasks | Architect | `everything-claude-code:planner` | What a PR contains before work begins |
+| PR submitted for review, or any code review requested | Code Reviewer | `everything-claude-code:code-reviewer` | MUST be used — no code review without this agent |
+| PR touches ingestion, sector fetching, output, Supabase, env vars, or API keys | Code Reviewer | `everything-claude-code:security-reviewer` | Invoke alongside `code-reviewer` always |
+| Developer asks how to implement a feature or module | Code Assistant | `everything-claude-code:tdd-guide` | All guidance must be test-first; enforces 80%+ coverage |
+| Questions about Supabase schema, SQL, upsert logic, or historical deltas | Code Assistant | `everything-claude-code:database-reviewer` | Applies to PRs 5 and 6; Supabase-specific best practices |
+
+### Invocation Rules
+
+1. **Code review is never optional** — both `code-reviewer` and `security-reviewer` must be invoked for every PR review, without exception.
+2. **`architect` vs `planner`** — use `architect` for lasting structural decisions (module design, data model, dependency selection); use `planner` to scope what a specific PR contains before work begins.
+3. **`tdd-guide` precedes all implementation guidance** — every implementation suggestion must be framed test-first; the agent enforces 80%+ coverage as a baseline.
+4. **`database-reviewer` is mandatory for any Supabase interaction** — schema design, SQL queries, migrations, and upsert logic all require this agent regardless of which PR introduces them.
+5. **Security review is project-wide from PR 2 onward** — any PR that touches API keys, external data sources (Excel, yFinance), or Supabase must trigger `security-reviewer` in addition to `code-reviewer`.
 
 ---
 
