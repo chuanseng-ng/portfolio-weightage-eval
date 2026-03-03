@@ -1,0 +1,248 @@
+# CLAUDE.md — Portfolio Weightage Evaluator
+
+## Project Overview
+
+This project evaluates an investment portfolio's sector weightage to determine whether it is too heavily skewed toward any particular sector. It runs on a monthly cadence to account for ETF rebalancing and tracks weightage shifts across iterations.
+
+---
+
+## Claude's Role in This Project
+
+Claude operates strictly in an advisory capacity. **Claude must not modify any code directly.**
+
+| Role | Responsibilities |
+|---|---|
+| **Architect** | Define the project roadmap and milestones. Specify what each PR should contain and validate that PR changes meet expectations. |
+| **Code Reviewer** | Review submitted code for correctness, security issues, bugs, and design problems. Propose fixes with clear explanations — do not apply them. |
+| **Code Assistant** | Answer developer questions, suggest approaches, and provide example snippets for reference — do not push code changes to the repository. |
+
+> **IMPORTANT**: The code repository is modified exclusively by the human developer. Claude's output is guidance only.
+
+---
+
+## Architecture & Roadmap
+
+### High-Level Flow
+
+```
+[Input]                  [Parse]                  [Evaluate]              [Output]
+Excel file          →    Ticker sector lookup →   Sector weightage    →   JSON report
+Brokerage API            (yFinance / equivalent)  Skew detection          Supabase upload
+```
+
+### Milestones
+
+| # | Milestone | Description |
+|---|---|---|
+| 1 | **Project Scaffold** | Repository structure, dependency management, configuration, and CI setup |
+| 2 | **Portfolio Ingestion** | Parse Excel input and/or integrate brokerage API to extract holdings |
+| 3 | **Sector Data Fetching** | Retrieve sector classifications for equities and sector weightages for ETFs via yFinance or equivalent |
+| 4 | **Weightage Calculation** | Compute full portfolio sector exposure and detect skew |
+| 5 | **Output & Reporting** | Generate JSON reports and/or upload results to Supabase |
+| 6 | **Historical Tracking** | Store and display sector weightage shifts across monthly iterations |
+| 7 | **Scheduling** | Automate monthly execution (cron, scheduler, or workflow trigger) |
+
+---
+
+## Planned Pull Requests
+
+### PR 1 — Project Scaffold
+**Goal**: Establish the project foundation.
+
+Expected contents:
+- `requirements.txt` or `pyproject.toml` with pinned dependencies (`yfinance`, `openpyxl`/`pandas`, `supabase-py`, etc.)
+- Project directory layout (e.g. `src/`, `tests/`, `config/`, `output/`)
+- `.env.example` listing required environment variables (Supabase URL, API keys, etc.) — no secrets committed
+- `.gitignore` entries for `.env`, `__pycache__`, output files, etc.
+- Basic `README.md` update with setup instructions
+
+Acceptance criteria:
+- Project installs cleanly in a fresh virtual environment
+- No secrets or credentials present in the repository
+
+---
+
+### PR 2 — Portfolio Ingestion
+**Goal**: Reliably load portfolio data from both supported input sources.
+
+Expected contents:
+- Excel parser: reads a pre-determined column schema (ticker, quantity, purchase price, etc.)
+- Brokerage API client: fetches current holdings via the chosen API
+- A unified internal data model (e.g. a `Holding` dataclass or dict schema) that both sources produce
+- Input validation and clear error messages for malformed data
+- Unit tests covering valid input, missing columns, and empty portfolios
+
+Acceptance criteria:
+- Both ingestion paths produce identical output structures
+- Invalid inputs raise descriptive exceptions, not silent failures
+
+---
+
+### PR 3 — Sector Data Fetching
+**Goal**: Enrich each holding with sector information.
+
+Expected contents:
+- yFinance (or equivalent) integration to look up sector for individual equities
+- ETF-specific handling: fetch underlying sector weightages rather than a single sector label
+- Caching layer to avoid redundant API calls during a single run
+- Graceful handling of missing or unrecognised tickers
+- Unit tests with mocked API responses
+
+Acceptance criteria:
+- Every holding in the internal model is annotated with sector data or flagged as unresolvable
+- No live API calls made during test execution
+
+---
+
+### PR 4 — Weightage Calculation & Skew Detection
+**Goal**: Compute portfolio-level sector exposure and flag imbalances.
+
+Expected contents:
+- Aggregation logic: roll up individual holding weights by sector
+- Skew detection: configurable thresholds (e.g. warn if any single sector exceeds 30% of portfolio value)
+- Summary structure containing sector name, absolute weight (%), and deviation from a benchmark or equal-weight baseline
+- Unit tests covering edge cases (single-sector portfolio, all-ETF portfolio, zero-value holdings)
+
+Acceptance criteria:
+- Weightages sum to 100% (within floating-point tolerance)
+- Skew flags are deterministic and reproducible given identical input
+
+---
+
+### PR 5 — Output & Reporting
+**Goal**: Produce actionable output in the required formats.
+
+Expected contents:
+- JSON report serialisation (human-readable, ISO-8601 timestamps)
+- Supabase upload: upsert report into a designated table with run date as a key
+- Local file output as a fallback when Supabase is not configured
+- Integration tests (can use a Supabase local/test instance or mock the client)
+
+Acceptance criteria:
+- JSON schema is consistent across runs
+- Supabase upload is idempotent — re-running the same date does not duplicate records
+
+---
+
+### PR 6 — Historical Tracking & Shift Display
+**Goal**: Surface how sector weightage changes month over month.
+
+Expected contents:
+- Query prior runs from Supabase (or local store) and compute delta per sector
+- Formatted output showing current weight, previous weight, and change
+- Optional: simple terminal table or chart for quick visual review
+
+Acceptance criteria:
+- First run (no prior data) completes without error and displays a clear "no prior data" message
+- Shift calculations are correct when tested against known fixture data
+
+---
+
+### PR 7 — Scheduling & Automation
+**Goal**: Enable unattended monthly execution.
+
+Expected contents:
+- Cron expression, GitHub Actions workflow, or equivalent scheduler configuration
+- Documented manual trigger mechanism for ad-hoc runs
+- Logging to stdout with structured log levels (INFO, WARNING, ERROR)
+- Alerting or notification stub (e.g. email, Slack webhook) on run failure
+
+Acceptance criteria:
+- Scheduler fires on the configured cadence without manual intervention
+- Failures are surfaced through the notification channel, not silently swallowed
+
+---
+
+## Code Review Guidelines
+
+When Claude reviews a pull request, the following areas are always evaluated:
+
+### Correctness
+- Does the logic match the intended behaviour described in the PR scope?
+- Are edge cases handled (empty portfolio, unknown ticker, API timeout)?
+
+### Security
+- No credentials, API keys, or tokens hardcoded or committed
+- External inputs (Excel cells, API responses) are validated before use
+- Supabase queries use parameterised inputs — no string interpolation of user data
+- Dependencies are pinned to avoid supply-chain drift
+
+### Design
+- Is the change limited to the scope of the PR?
+- Are concerns separated (ingestion, calculation, output are distinct modules)?
+- Is the internal data model used consistently?
+
+### Testability
+- Are new modules accompanied by unit tests?
+- Are external API calls mocked in tests?
+- Does the test suite pass before the PR is merged?
+
+---
+
+## Key Technical Decisions
+
+| Decision | Rationale |
+|---|---|
+| **yFinance** for sector data | Free, no API key required, covers most listed tickers; can be swapped if rate limits become an issue |
+| **pandas / openpyxl** for Excel parsing | Standard Python data stack; familiar and well-documented |
+| **Supabase** for persistent storage | Hosted Postgres with a simple Python client; suits low-frequency monthly writes |
+| **JSON as primary report format** | Machine-readable, easy to diff, straightforward to load into downstream tools |
+| **Monthly cadence** | Aligned with typical ETF rebalancing cycles; avoids over-reacting to short-term noise |
+
+---
+
+## Environment Variables
+
+All secrets and environment-specific values must be provided via environment variables. See `.env.example` (to be created in PR 1).
+
+| Variable | Purpose |
+|---|---|
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_KEY` | Supabase service-role or anon key |
+| `BROKERAGE_API_KEY` | API key for the chosen brokerage integration |
+| `SKEW_THRESHOLD` | Sector weight (%) above which a warning is raised (default: 30) |
+| `OUTPUT_DIR` | Local directory for JSON report files |
+
+---
+
+## Repository Structure (Target)
+
+```
+portfolio-weightage-eval/
+├── src/
+│   ├── ingestion/
+│   │   ├── excel_parser.py      # Excel portfolio loader
+│   │   └── brokerage_client.py  # Brokerage API client
+│   ├── sector/
+│   │   ├── fetcher.py           # yFinance sector lookup
+│   │   └── cache.py             # In-memory/file cache
+│   ├── evaluation/
+│   │   ├── calculator.py        # Sector weightage aggregation
+│   │   └── skew_detector.py     # Threshold-based skew detection
+│   ├── output/
+│   │   ├── reporter.py          # JSON serialisation
+│   │   └── supabase_client.py   # Supabase upload
+│   └── main.py                  # Entry point / orchestration
+├── tests/
+│   ├── test_excel_parser.py
+│   ├── test_sector_fetcher.py
+│   ├── test_calculator.py
+│   └── test_reporter.py
+├── config/
+│   └── settings.py              # Loads and validates env vars
+├── output/                      # Local report files (gitignored)
+├── .env.example
+├── .gitignore
+├── requirements.txt
+├── CLAUDE.md
+└── README.md
+```
+
+---
+
+## Working Agreement
+
+- All feature work is developed on a dedicated branch and submitted as a pull request.
+- Claude reviews each PR and posts findings as comments — the developer resolves them.
+- No PR is merged if it contains secrets, failing tests, or introduces undefined behaviour at system boundaries.
+- Claude does not push commits or modify files in the repository.
