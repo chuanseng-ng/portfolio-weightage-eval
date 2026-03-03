@@ -44,7 +44,7 @@ When acting in any of the three roles, Claude **must** invoke the corresponding 
 | Plan a new PR, define milestones, design a module | Architect | `everything-claude-code:architect` | Structural decisions: module boundaries, data model, dependency choices |
 | Scope/break down a feature into tasks | Architect | `everything-claude-code:planner` | What a PR contains before work begins |
 | PR submitted for review, or any code review requested | Code Reviewer | `everything-claude-code:code-reviewer` | MUST be used — no code review without this agent |
-| PR touches ingestion, sector fetching, output, Supabase, env vars, or API keys | Code Reviewer | `everything-claude-code:security-reviewer` | Invoke alongside `code-reviewer` always |
+| Any PR submitted for review | Code Reviewer | `everything-claude-code:security-reviewer` | Invoke alongside `code-reviewer` always |
 | Developer asks how to implement a feature or module | Code Assistant | `everything-claude-code:tdd-guide` | All guidance must be test-first; enforces 80%+ coverage |
 | Questions about Supabase schema, SQL, upsert logic, or historical deltas | Code Assistant | `everything-claude-code:database-reviewer` | Applies to PRs 5 and 6; Supabase-specific best practices |
 
@@ -54,7 +54,7 @@ When acting in any of the three roles, Claude **must** invoke the corresponding 
 2. **`architect` vs `planner`** — use `architect` for lasting structural decisions (module design, data model, dependency selection); use `planner` to scope what a specific PR contains before work begins.
 3. **`tdd-guide` precedes all implementation guidance** — every implementation suggestion must be framed test-first; the agent enforces 80%+ coverage as a baseline.
 4. **`database-reviewer` is mandatory for any Supabase interaction** — schema design, SQL queries, migrations, and upsert logic all require this agent regardless of which PR introduces them.
-5. **Security review is project-wide from PR 2 onward** — any PR that touches API keys, external data sources (Excel, yFinance), or Supabase must trigger `security-reviewer` in addition to `code-reviewer`.
+5. **Security review is universal** — `security-reviewer` must be invoked for every PR review alongside `code-reviewer`, without exception.
 
 ---
 
@@ -224,7 +224,7 @@ Acceptance criteria:
 Expected contents:
 - yFinance integration for US and UK equities; sector mapped to the 13-sector taxonomy
 - **SGX fallback chain** for `.SI` tickers: yFinance → SGX public API (`api.sgx.com/securities/v1.1`) → `data/sgx_sectors.csv` → `Unclassified`
-- **SG REIT override**: any security classified as a REIT must be tagged to the `REITs` sector regardless of yFinance classification
+- **SG REIT override**: after sector lookup completes (any layer), if the security is classified as a REIT by any data source or has "REIT" in its name, reclassify to the `REITs` sector, overriding yFinance, SGX API, or CSV classification if they assigned it to Financials or Real Estate
 - **ETF look-through** (preferred): map ETF underlying holdings to their sectors proportionally; fall back to `ETF Broad Market` if look-through data is unavailable; record `etf_lookthrough: true/false` on each holding
 - **FX rate fetch**: at run start, fetch `GBPSGD=X` and `USDSGD=X` via yFinance and cache for the duration of the run
 - In-memory caching layer to avoid redundant API calls during a single run
@@ -257,6 +257,8 @@ Acceptance criteria:
 - Market exposure percentages sum to 100%
 - Skew flags fire correctly for each per-sector threshold
 - Skew flags are deterministic and reproducible given identical input
+- Holdings with missing or invalid currency fields raise descriptive `ValidationError` exceptions
+- If a required FX rate is unavailable, the run fails early with a clear error message listing the missing rate(s)
 
 ---
 
@@ -381,7 +383,7 @@ All secrets and environment-specific values must be provided via environment var
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_KEY` | Supabase service-role or anon key |
 | `BROKERAGE_API_KEY` | API key for the chosen brokerage integration |
-| `BASE_CURRENCY` | Currency all values are normalised to before calculation (default: `SGD`) |
+| `BASE_CURRENCY` | Base currency for all calculations; must be `SGD` (configurable only for future extensibility; other currencies not currently supported) |
 | `SKEW_THRESHOLD` | Fallback sector weight (%) threshold for "any single sector" rule (default: 40); per-sector overrides defined in Domain Rules take precedence |
 | `OUTPUT_DIR` | Local directory for JSON report files |
 | `OUTPUT_EXCEL` | Set to `true` to generate the optional multi-tab Excel report (default: `false`) |
