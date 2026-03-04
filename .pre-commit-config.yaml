@@ -26,3 +26,35 @@ repos:
       - id: ruff                        # lint — must pass before commit
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format                 # format — auto-rewrites and blocks commit if changed
+
+  # ── Type checking (mypy) ────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+        require_serial: true
+
+  # ── Static analysis (pylint, minimum score 9.0) ─────────────────────────────
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint (score ≥ 9.0)
+        entry: uv run pylint src/ config/ --fail-under=9.0
+        language: system
+        types: [python]
+        pass_filenames: false
+        require_serial: true
+
+  # ── Tests with coverage (minimum 85%) ───────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest (coverage ≥ 85%)
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        require_serial: true

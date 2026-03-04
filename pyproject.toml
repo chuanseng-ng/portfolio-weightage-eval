@@ -12,9 +12,16 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pre-commit>=4.5.1",
-    "pytest>=8.0",
+    # Testing
+    "pytest==8.3.5",
     "pytest-mock>=3.12",
+    "pytest-cov==6.0.0",
+    "pytest-asyncio==0.25.2",
+    # Development Tools
+    "mypy>=1.10",
+    "pylint==4.0.3",
+    "pandas-stubs>=2.2",
+    "pre-commit>=4.5.1",
     "ruff>=0.15.4",
 ]
 
@@ -36,3 +43,57 @@ ignore = []
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+warn_return_any = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+files = ["src", "config", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+norecursedirs = [".git", "__pycache__", "venv", ".venv"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "--cov=src --cov-report=term-missing --cov-fail-under=85"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    'def __repr__',
+    'if self.debug:',
+    'if settings.DEBUG',
+    'raise AssertionError',
+    'raise NotImplementedError',
+    'if 0:',
+    'if __name__ == .__main__.:',
+    'if TYPE_CHECKING:',
+    'class .*\bProtocol\):',
+    '@(abc\.)?abstractmethod',
+    'if API_URL:',
+    'if api_key:',
+]
+
+[tool.coverage.run]
+omit = [
+    "tests/*",
+    "*/__init__.py",
+]
+
+[tool.pylint.messages_control]
+disable = [
+    "line-too-long",         # enforced by ruff instead
+    "too-few-public-methods", # valid for Protocol and single-method stub/client classes
+    "redefined-outer-name",  # standard pytest fixture pattern — not a real shadowing issue
+]
+
+[tool.pylint.basic]
+good-names = ["h", "df", "ib"]  # short names acceptable in this project
