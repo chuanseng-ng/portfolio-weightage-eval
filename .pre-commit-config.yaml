@@ -54,7 +54,8 @@ repos:
     hooks:
       - id: pytest
         name: pytest (coverage ≥ 85%)
-        entry: uv run pytest
+        entry: uv run pytest --cov=src --cov-fail-under=85
         language: system
+        types: [python]
         pass_filenames: false
         require_serial: true
