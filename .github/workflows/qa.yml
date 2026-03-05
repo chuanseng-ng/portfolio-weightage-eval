@@ -10,6 +10,9 @@ jobs:
   qa:
     name: QA — ${{ matrix.check }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write        # needed for actions-js/push to update README
+      pull-requests: write   # needed for pytest-coverage-comment to post PR comments
 
     strategy:
       fail-fast: false          # run all checks even if one fails
