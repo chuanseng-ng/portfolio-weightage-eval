@@ -79,7 +79,7 @@ def test_ibkr_fetch_holdings_returns_mapped_holdings() -> None:
     mock_ib.disconnect.assert_called_once()
 
 
-def test_ibkr_detch_holdings_disconnects_on_error() -> None:
+def test_ibkr_fetch_holdings_disconnects_on_error() -> None:
     """Test that IBKR fetch_holdings disconnects even if an error occurs during fetching."""
     mock_ib = MagicMock()
     mock_ib.portfolio.side_effect = RuntimeError("TWS connection lost")

@@ -60,8 +60,8 @@ class ExcelParser:
             currency = row["currency"]
             if not isinstance(currency, str) or currency.strip().upper() not in VALID_CURRENCIES:
                 raise ValidationError(
-                    f"Row {row_num}: 'currency' must be one of {sorted(VALID_CURRENCIES)}, ",
-                    f"got '{currency}'",
+                    f"Row {row_num}: 'currency' must be one of {sorted(VALID_CURRENCIES)}, "
+                    f"got '{currency}'"
                 )
 
             currency = currency.strip().upper()

@@ -6,6 +6,7 @@ from typing import Protocol, runtime_checkable
 
 from ib_insync import IB
 
+from src.exceptions import ValidationError
 from src.models import Holding, detect_market
 
 
@@ -36,6 +37,10 @@ class IBKRBrokerageClient:
             for item in portfolio_items:
                 contract = item.contract
                 ticker = contract.localSymbol or contract.symbol
+                if not ticker:
+                    raise ValidationError(
+                        f"Missing ticker: contract {contract} has no localSymbol or symbol"
+                    )
                 holdings.append(
                     Holding(
                         ticker=ticker,
