@@ -59,8 +59,8 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 norecursedirs = [".git", "__pycache__", "venv", ".venv"]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
+asyncio_mode = "auto"                            # reserved for future async tests
+asyncio_default_fixture_loop_scope = "function"  # reserved for future async tests
 addopts = "--cov=src --cov-report=term-missing --cov-fail-under=85"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
