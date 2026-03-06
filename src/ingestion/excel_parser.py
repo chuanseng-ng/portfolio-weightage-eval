@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import BinaryIO
 
@@ -42,6 +43,10 @@ class ExcelParser:
             quantity = row["quantity"]
             try:
                 quantity = float(quantity)
+                if not math.isfinite(quantity):
+                    raise ValueError(
+                        f"Row {row_num}: 'quantity' must be a finite number, got {quantity}"
+                    )
             except (TypeError, ValueError) as exc:
                 raise ValidationError(f"Row {row_num}: 'quantity' must be a number") from exc
             if quantity <= 0:
@@ -50,6 +55,10 @@ class ExcelParser:
             price = row["purchase price"]
             try:
                 price = float(price)
+                if not math.isfinite(price):
+                    raise ValueError(
+                        f"Row {row_num}: 'purchase price' must be a finite number, got {price}"
+                    )
             except (TypeError, ValueError) as exc:
                 raise ValidationError(f"Row {row_num}: 'purchase price' must be a number") from exc
             if price < 0:

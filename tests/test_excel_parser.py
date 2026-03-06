@@ -178,3 +178,47 @@ def test_parse_from_bytesio(
     result = parser.parse(data)
     assert len(result) == 1
     assert isinstance(result[0], Holding)
+
+
+def test_parse_nan_quantity_raises(
+    parser: ExcelParser, make_excel_bytes: Callable[[list[dict[str, object]]], io.BytesIO]
+) -> None:
+    """Test that NaN quantity raises ValidationError."""
+    data = make_excel_bytes(
+        [{"Ticker": "AAPL", "Quantity": float("nan"), "Purchase Price": 150.0, "Currency": "USD"}]
+    )
+    with pytest.raises(ValidationError, match="quantity"):
+        parser.parse(data)
+
+
+def test_parse_inf_quantity_raises(
+    parser: ExcelParser, make_excel_bytes: Callable[[list[dict[str, object]]], io.BytesIO]
+) -> None:
+    """Test that infinite quantity raises ValidationError."""
+    data = make_excel_bytes(
+        [{"Ticker": "AAPL", "Quantity": float("inf"), "Purchase Price": 150.0, "Currency": "USD"}]
+    )
+    with pytest.raises(ValidationError, match="quantity"):
+        parser.parse(data)
+
+
+def test_parse_nan_price_raises(
+    parser: ExcelParser, make_excel_bytes: Callable[[list[dict[str, object]]], io.BytesIO]
+) -> None:
+    """Test that NaN purchase price raises ValidationError."""
+    data = make_excel_bytes(
+        [{"Ticker": "AAPL", "Quantity": 10, "Purchase Price": float("nan"), "Currency": "USD"}]
+    )
+    with pytest.raises(ValidationError, match="purchase price"):
+        parser.parse(data)
+
+
+def test_parse_inf_price_raises(
+    parser: ExcelParser, make_excel_bytes: Callable[[list[dict[str, object]]], io.BytesIO]
+) -> None:
+    """Test that infinite purchase price raises ValidationError."""
+    data = make_excel_bytes(
+        [{"Ticker": "AAPL", "Quantity": 10, "Purchase Price": float("inf"), "Currency": "USD"}]
+    )
+    with pytest.raises(ValidationError, match="purchase price"):
+        parser.parse(data)

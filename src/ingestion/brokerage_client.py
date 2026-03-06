@@ -44,7 +44,7 @@ class IBKRBrokerageClient:
                     )
 
                 raw_currency = contract.currency
-                currency = raw_currency.upper() if isinstance(raw_currency, str) else ""
+                currency = raw_currency.strip().upper() if isinstance(raw_currency, str) else ""
                 if currency not in VALID_CURRENCIES:
                     raise ValidationError(
                         f"Invalid currency '{raw_currency}' for ticker '{ticker}'"
