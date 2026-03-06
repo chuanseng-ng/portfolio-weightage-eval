@@ -61,7 +61,7 @@ jobs:
         if: matrix.check == 'pytest'
         run: |
           set -o pipefail
-          uv run pytest -v --cov --junitxml=pytest.xml --cov-report=term-missing:skip-covered | tee pytest-coverage.txt
+          uv run pytest -v --junitxml=pytest.xml --cov-report=term-missing:skip-covered | tee pytest-coverage.txt
 
       - name: Pytest coverage comment
         if: matrix.check == 'pytest'
