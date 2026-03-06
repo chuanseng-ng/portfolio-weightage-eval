@@ -59,10 +59,12 @@ jobs:
       # ── pytest + coverage ─────────────────────────────────────────────────
       - name: pytest (coverage ≥ 85%)
         if: matrix.check == 'pytest'
-        run: uv run pytest -v --cov --junitxml=pytest.xml --cov-report=term-missing:skip-covered | tee pytest-coverage.txt
+        run: |
+          set -o pipefail
+          uv run pytest -v --cov --junitxml=pytest.xml --cov-report=term-missing:skip-covered | tee pytest-coverage.txt
 
       - name: Pytest coverage comment
-        if: matrix.check == 'pytest' && github.ref != 'refs/heads/python/main'
+        if: matrix.check == 'pytest'
         id: coverageComment
         uses: MishaKav/pytest-coverage-comment@v1.2.0
         with:
@@ -70,7 +72,7 @@ jobs:
           junitxml-path: ./pytest.xml
 
       - name: Update README with Coverage HTML
-        if: matrix.check == 'pytest' && github.ref != 'refs/heads/python/main'
+        if: matrix.check == 'pytest' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           COVERAGE_HTML: ${{ steps.coverageComment.outputs.coverageHtml }}
         run: |
@@ -86,8 +88,9 @@ jobs:
           ' README.md > /tmp/README_updated.md && mv /tmp/README_updated.md README.md
 
       - name: Commit & Push changes to README
-        if: matrix.check == 'pytest' && github.ref != 'refs/heads/python/main'
+        if: matrix.check == 'pytest' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions-js/push@v1.5
         with:
           message: Update coverage in README [skip ci]
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main

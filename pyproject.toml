@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "pandas>=2.2",
     "openpyxl>=3.1",
-    "ib_insync>=0.9",
+    "ib-insync>=0.9",
 ]
 
 [dependency-groups]
