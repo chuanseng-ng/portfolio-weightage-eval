@@ -7,7 +7,7 @@ from typing import Protocol, runtime_checkable
 from ib_insync import IB
 
 from src.exceptions import ValidationError
-from src.models import Holding, detect_market
+from src.models import VALID_CURRENCIES, Holding, detect_market
 
 
 @runtime_checkable
@@ -36,10 +36,18 @@ class IBKRBrokerageClient:
             holdings: list[Holding] = []
             for item in portfolio_items:
                 contract = item.contract
-                ticker = contract.localSymbol or contract.symbol
+                raw_ticker = contract.localSymbol or contract.symbol
+                ticker = raw_ticker.strip() if isinstance(raw_ticker, str) else ""
                 if not ticker:
                     raise ValidationError(
                         f"Missing ticker: contract {contract} has no localSymbol or symbol"
+                    )
+
+                raw_currency = contract.currency
+                currency = raw_currency.upper() if isinstance(raw_currency, str) else ""
+                if currency not in VALID_CURRENCIES:
+                    raise ValidationError(
+                        f"Invalid currency '{raw_currency}' for ticker '{ticker}'"
                     )
                 holdings.append(
                     Holding(
@@ -47,7 +55,7 @@ class IBKRBrokerageClient:
                         market=detect_market(ticker),
                         quantity=float(item.position),
                         price=float(item.averageCost),
-                        currency=contract.currency,
+                        currency=currency,
                     )
                 )
             return holdings

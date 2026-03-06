@@ -89,7 +89,7 @@ def test_ibkr_fetch_holdings_disconnects_on_error() -> None:
         with pytest.raises(RuntimeError, match="TWS connection lost"):
             client.fetch_holdings()
 
-    mock_ib.connect.assert_called_once()  # finally block must always fire
+    mock_ib.disconnect.assert_called_once()  # finally block must always fire
 
 
 def test_ibkr_falls_back_to_symbol_when_local_symbol_empty() -> None:
