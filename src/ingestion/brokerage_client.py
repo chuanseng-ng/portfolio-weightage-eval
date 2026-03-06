@@ -22,15 +22,27 @@ class BrokerageClient(Protocol):
 class IBKRBrokerageClient:
     """Brokerage client implementation for Interactive Brokers using ib_insync."""
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 7497, client_id: int = 1) -> None:
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 7497,
+        client_id: int = 1,
+        connect_timeout: int = 4,
+    ) -> None:
         self._host = host
         self._port = port
         self._client_id = client_id
+        self._connect_timeout = connect_timeout
 
     def fetch_holdings(self) -> list[Holding]:
         """Connects to IBKR, fetches portfolio holdings, and converts them to Holding instances."""
         ib = IB()  # type: ignore[no-untyped-call]
-        ib.connect(self._host, self._port, self._client_id)
+        try:
+            ib.connect(self._host, self._port, self._client_id, self._connect_timeout)
+        except Exception as e:
+            raise ValidationError(
+                f"Failed to connect to IBKR at {self._host}:{self._port}: {e}"
+            ) from e
         try:
             portfolio_items = ib.portfolio()
             holdings: list[Holding] = []

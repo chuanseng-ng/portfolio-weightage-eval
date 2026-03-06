@@ -75,7 +75,7 @@ def test_ibkr_fetch_holdings_returns_mapped_holdings() -> None:
     assert result[0].quantity == 10.0
     assert result[0].price == 150.0
     assert result[0].currency == "USD"
-    mock_ib.connect.assert_called_once_with("127.0.0.1", 7497, 1)
+    mock_ib.connect.assert_called_once_with("127.0.0.1", 7497, 1, 4)
     mock_ib.disconnect.assert_called_once()
 
 
