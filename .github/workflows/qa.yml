@@ -83,18 +83,20 @@ jobs:
       pull-requests: write   # needed for pytest-coverage-comment to post PR comments
 
     steps:
-      - name: Checkout repository (push to main — SSH key for protected branch push)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ssh-key: ${{ secrets.CODE_COVERAGE_PRIVATE_KEY }}
 
-      - name: Checkout repository (PR or non-main push)
-        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Configure SSH deploy key (push to main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s' "${{ secrets.CODE_COVERAGE_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git config --global core.sshCommand "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes"
+          git remote set-url origin git@github.com:chuanseng-ng/portfolio-weightage-eval.git
 
       - name: Download coverage report
         uses: actions/download-artifact@v4
