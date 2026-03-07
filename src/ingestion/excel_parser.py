@@ -19,17 +19,23 @@ class ExcelParser:
 
     def parse(self, source: str | Path | BinaryIO) -> list[Holding]:
         """Parse the given Excel file and return a list of Holding objects."""
-        df = pd.read_excel(source, engine="openpyxl")
+        try:
+            df = pd.read_excel(source, engine="openpyxl")
+        except Exception as exc:
+            raise ValidationError(f"Failed to read Excel file: {exc}") from exc
 
         # Normalize column names
         df.columns = [str(c).strip().lower() for c in df.columns]
 
-        if df.empty:
+        if len(df.columns) == 0:  # truly empty workbook - no header row present
             return []
 
         missing = _REQUIRED_COLUMNS - set(df.columns)
         if missing:
             raise ValidationError(f"Missing required columns: {sorted(missing)}")
+
+        if df.empty:  # correct headers, but no data rows
+            return []
 
         holdings: list[Holding] = []
         for row_idx, row in df.iterrows():

@@ -81,6 +81,13 @@ class IBKRBrokerageClient:
                         f"Invalid price '{item.averageCost}' for ticker '{ticker}': {e}"
                     ) from e
 
+                market = detect_market(ticker)
+                if market == "US" and ("." in ticker):
+                    raise ValidationError(
+                        f"Ticker '{ticker}' has an unrecognized suffix; "
+                        "only .SI (SG) and .L (UK) are currently supported"
+                    )
+
                 holdings.append(
                     Holding(
                         ticker=ticker,
