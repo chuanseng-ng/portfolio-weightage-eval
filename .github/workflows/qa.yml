@@ -123,5 +123,5 @@ jobs:
         uses: actions-js/push@v1.5
         with:
           message: Update coverage in README [skip ci]
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh: true
           branch: main
