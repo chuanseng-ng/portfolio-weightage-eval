@@ -95,7 +95,7 @@ jobs:
           printf '%s' "${{ secrets.CODE_COVERAGE_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan github.com >> ~/.ssh/known_hosts
-          git config --global core.sshCommand "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes"
+          git config --global core.sshCommand "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
           git remote set-url origin git@github.com:chuanseng-ng/portfolio-weightage-eval.git
 
       - name: Download coverage report
