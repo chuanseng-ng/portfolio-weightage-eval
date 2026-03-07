@@ -22,9 +22,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # needed for accurate coverage comments on PRs
-          ssh-key: ${{ secrets.CODE_COVERAGE_PRIVATE_KEY }}  # for private submodules
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -88,6 +85,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # fetch full history for accurate blame in coverage comments
+          ssh-key: ${{ secrets.CODE_COVERAGE_PRIVATE_KEY }}  # for pushing to main branch
 
       - name: Download coverage report
         uses: actions/download-artifact@v4
