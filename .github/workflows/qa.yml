@@ -24,7 +24,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # needed for accurate coverage comments on PRs
-          ref: 'main'  # ensures coverage baseline is established on main branch
           ssh-key: ${{ secrets.CODE_COVERAGE_PRIVATE_KEY }}  # for private submodules
 
       - name: Install uv
