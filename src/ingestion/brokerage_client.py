@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Protocol, runtime_checkable
 
 from ib_insync import IB
@@ -61,12 +62,31 @@ class IBKRBrokerageClient:
                     raise ValidationError(
                         f"Invalid currency '{raw_currency}' for ticker '{ticker}'"
                     )
+
+                try:
+                    quantity = float(item.position)
+                    if not math.isfinite(quantity):
+                        raise ValueError("Quantity must be a finite number")
+                except (ValueError, TypeError) as e:
+                    raise ValidationError(
+                        f"Invalid quantity '{item.position}' for ticker '{ticker}': {e}"
+                    ) from e
+
+                try:
+                    price = float(item.averageCost)
+                    if not math.isfinite(price):
+                        raise ValueError("Price must be a finite number")
+                except (ValueError, TypeError) as e:
+                    raise ValidationError(
+                        f"Invalid price '{item.averageCost}' for ticker '{ticker}': {e}"
+                    ) from e
+
                 holdings.append(
                     Holding(
                         ticker=ticker,
                         market=detect_market(ticker),
-                        quantity=float(item.position),
-                        price=float(item.averageCost),
+                        quantity=quantity,
+                        price=price,
                         currency=currency,
                     )
                 )

@@ -48,7 +48,7 @@ class ExcelParser:
                         f"Row {row_num}: 'quantity' must be a finite number, got {quantity}"
                     )
             except (TypeError, ValueError) as exc:
-                raise ValidationError(f"Row {row_num}: 'quantity' must be a number") from exc
+                raise ValidationError(f"Row {row_num}: 'quantity' must be a number: {exc}") from exc
             if quantity <= 0:
                 raise ValidationError(f"Row {row_num}: 'quantity' must be positive, got {quantity}")
 
@@ -60,7 +60,9 @@ class ExcelParser:
                         f"Row {row_num}: 'purchase price' must be a finite number, got {price}"
                     )
             except (TypeError, ValueError) as exc:
-                raise ValidationError(f"Row {row_num}: 'purchase price' must be a number") from exc
+                raise ValidationError(
+                    f"Row {row_num}: 'purchase price' must be a number: {exc}"
+                ) from exc
             if price < 0:
                 raise ValidationError(
                     f"Row {row_num}: 'purchase price' cannot be negative, got {price}"
@@ -75,13 +77,20 @@ class ExcelParser:
 
             currency = currency.strip().upper()
 
+            market = detect_market(ticker)
+            if market == "US" and ("." in ticker):
+                raise ValidationError(
+                    f"Row {row_num}: ticker '{ticker}' has an unrecognized suffix; "
+                    "only .SI (SG) and .L (UK) are currently supported"
+                )
+
             holdings.append(
                 Holding(
                     ticker=ticker,
                     quantity=quantity,
                     price=price,
                     currency=currency,
-                    market=detect_market(ticker),
+                    market=market,
                 )
             )
 
