@@ -11,8 +11,8 @@ jobs:
     name: QA — ${{ matrix.check }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write        # needed for actions-js/push to update README
-      pull-requests: write   # needed for pytest-coverage-comment to post PR comments
+      contents: read
+      pull-requests: read
 
     strategy:
       fail-fast: false          # run all checks even if one fails
@@ -63,8 +63,36 @@ jobs:
           set -o pipefail
           uv run pytest -v --cov=src --cov-fail-under=85 --junitxml=pytest.xml --cov-report=term-missing:skip-covered | tee pytest-coverage.txt
 
-      - name: Pytest coverage comment
+      - name: Upload coverage report
         if: matrix.check == 'pytest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            pytest-coverage.txt
+            pytest.xml
+
+  # ── coverage publishing (elevated permissions isolated here) ────────────
+  publish-coverage:
+    name: Publish Coverage
+    needs: qa
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      contents: write        # needed for actions-js/push to update README
+      pull-requests: write   # needed for pytest-coverage-comment to post PR comments
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: .
+
+      - name: Pytest coverage comment
         id: coverageComment
         uses: MishaKav/pytest-coverage-comment@v1.2.0
         with:
@@ -72,7 +100,7 @@ jobs:
           junitxml-path: ./pytest.xml
 
       - name: Update README with Coverage HTML
-        if: matrix.check == 'pytest' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           COVERAGE_HTML: ${{ steps.coverageComment.outputs.coverageHtml }}
         run: |
@@ -88,7 +116,7 @@ jobs:
           ' README.md > /tmp/README_updated.md && mv /tmp/README_updated.md README.md
 
       - name: Commit & Push changes to README
-        if: matrix.check == 'pytest' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions-js/push@v1.5
         with:
           message: Update coverage in README [skip ci]
