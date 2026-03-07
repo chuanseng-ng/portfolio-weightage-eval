@@ -83,11 +83,18 @@ jobs:
       pull-requests: write   # needed for pytest-coverage-comment to post PR comments
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (push to main — SSH key for protected branch push)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # fetch full history for accurate blame in coverage comments
-          ssh-key: ${{ secrets.CODE_COVERAGE_PRIVATE_KEY }}  # for pushing to main branch
+          fetch-depth: 0
+          ssh-key: ${{ secrets.CODE_COVERAGE_PRIVATE_KEY }}
+
+      - name: Checkout repository (PR or non-main push)
+        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download coverage report
         uses: actions/download-artifact@v4
