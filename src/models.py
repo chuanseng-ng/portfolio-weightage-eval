@@ -24,3 +24,5 @@ class Holding:
     quantity: float
     price: float
     currency: str
+    sector: str | None = None
+    etf_lookthrough: bool = False
