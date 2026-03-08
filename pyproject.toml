@@ -8,6 +8,7 @@ dependencies = [
     "pandas>=2.2",
     "openpyxl>=3.1",
     "ib-insync>=0.9",
+    "yfinance>=0.2",
 ]
 
 [dependency-groups]
