@@ -42,7 +42,7 @@ class TestFxFetcher:
 
         def mock_fast_info(symbol: str) -> Any:
             if "USD" in symbol:
-                raise RuntimeError("API error")
+                raise OSError("API error")
             ticker = mocker.MagicMock()
             ticker.fast_info = {
                 "last_price": 1.23 if "GBP" in symbol else 1.56 if "EUR" in symbol else 0.0091
@@ -59,7 +59,7 @@ class TestFxFetcher:
 
         def mock_fast_info(symbol: str) -> Any:
             if "GBP" in symbol:
-                raise RuntimeError("API error")
+                raise OSError("API error")
             ticker = mocker.MagicMock()
             ticker.fast_info = {
                 "last_price": 1.34 if "USD" in symbol else 1.56 if "EUR" in symbol else 0.0091
@@ -76,7 +76,7 @@ class TestFxFetcher:
 
         def mock_fast_info(symbol: str) -> Any:
             if "EUR" in symbol:
-                raise RuntimeError("API error")
+                raise OSError("API error")
             ticker = mocker.MagicMock()
             ticker.fast_info = {
                 "last_price": 1.34 if "USD" in symbol else 1.23 if "GBP" in symbol else 0.0091
@@ -93,7 +93,7 @@ class TestFxFetcher:
 
         def mock_fast_info(symbol: str) -> Any:
             if "JPY" in symbol:
-                raise RuntimeError("API error")
+                raise OSError("API error")
             ticker = mocker.MagicMock()
             ticker.fast_info = {
                 "last_price": 1.34 if "USD" in symbol else 1.23 if "GBP" in symbol else 1.56
@@ -107,7 +107,7 @@ class TestFxFetcher:
 
     def test_fetch_raises_listing_both_when_all_missing(self, mocker: MockerFixture) -> None:
         """Error message names every missing rate when all fail."""
-        mocker.patch("src.sector.fx.yf.Ticker", side_effect=RuntimeError("timeout"))
+        mocker.patch("src.sector.fx.yf.Ticker", side_effect=OSError("timeout"))
 
         with pytest.raises(ValidationError) as exc_info:
             FxFetcher().fetch()
