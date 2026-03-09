@@ -40,7 +40,7 @@ class IBKRBrokerageClient:
         ib = IB()  # type: ignore[no-untyped-call]
         try:
             ib.connect(self._host, self._port, self._client_id, self._connect_timeout)
-        except Exception as e:
+        except (OSError, TimeoutError) as e:
             raise ValidationError(
                 f"Failed to connect to IBKR at {self._host}:{self._port}: {e}"
             ) from e
