@@ -38,7 +38,7 @@ class FxFetcher:
                 if price is None or price <= 0:
                     raise ValueError(f"Invalid price for {symbol}: {price}")
                 rates[field] = float(price)
-            except Exception:
+            except (OSError, KeyError, TypeError, ValueError):
                 missing.append(symbol)
 
         if missing:
