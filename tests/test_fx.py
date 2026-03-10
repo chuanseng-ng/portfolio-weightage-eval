@@ -105,7 +105,7 @@ class TestFxFetcher:
         with pytest.raises(ValidationError, match="JPYSGD=X"):
             FxFetcher().fetch()
 
-    def test_fetch_raises_listing_both_when_all_missing(self, mocker: MockerFixture) -> None:
+    def test_fetch_raises_listing_all_when_all_missing(self, mocker: MockerFixture) -> None:
         """Error message names every missing rate when all fail."""
         mocker.patch("src.sector.fx.yf.Ticker", side_effect=OSError("timeout"))
 
@@ -140,15 +140,15 @@ class TestFxFetcher:
 class TestSectorCache:
     """Tests for SectorCache class."""
 
-    def test_get_sector_returns_none_when_not_cached(self) -> None:
-        """get_sector returns None if sector not in cache."""
-        assert SectorCache().get_sector("AAPL") is None
+    def test_get_holding_returns_none_when_not_cached(self) -> None:
+        """get_holding returns None if sector not in cache."""
+        assert SectorCache().get_holding("AAPL") is None
 
-    def test_set_and_get_sector_round_trips(self) -> None:
-        """set_sector followed by get_sector returns the same value."""
+    def test_set_and_get_holding_round_trips(self) -> None:
+        """set_holding followed by get_holding returns the same value."""
         cache = SectorCache()
-        cache.set_sector("AAPL", "Technology")
-        assert cache.get_sector("AAPL") == "Technology"
+        cache.set_holding("AAPL", "Technology", False)
+        assert cache.get_holding("AAPL") == ("Technology", False)
 
     def test_get_fx_rates_returns_none_when_not_set(self) -> None:
         """get_fx_rates returns None if rates not set."""
@@ -164,23 +164,23 @@ class TestSectorCache:
     def test_clear_removes_sectors_and_fx_rates(self) -> None:
         """clear removes all cached sectors and FX rates."""
         cache = SectorCache()
-        cache.set_sector("AAPL", "Technology")
+        cache.set_holding("AAPL", "Technology", False)
         cache.set_fx_rates(FxRates(usdsgd=1.34, gbpsgd=1.23, eursgd=1.56, jpysgd=0.0091))
         cache.clear()
-        assert cache.get_sector("AAPL") is None
+        assert cache.get_holding("AAPL") is None
         assert cache.get_fx_rates() is None
 
     def test_different_tickers_cached_independently(self) -> None:
         """Sectors for different tickers are stored and retrieved independently."""
         cache = SectorCache()
-        cache.set_sector("AAPL", "Technology")
-        cache.set_sector("D05.SI", "Financials")
-        assert cache.get_sector("AAPL") == "Technology"
-        assert cache.get_sector("D05.SI") == "Financials"
+        cache.set_holding("AAPL", "Technology", False)
+        cache.set_holding("D05.SI", "Financials", False)
+        assert cache.get_holding("AAPL") == ("Technology", False)
+        assert cache.get_holding("D05.SI") == ("Financials", False)
 
     def test_overwrite_cached_sector(self) -> None:
         """Setting a sector for a ticker that already has one overwrites it."""
         cache = SectorCache()
-        cache.set_sector("AAPL", "Technology")
-        cache.set_sector("AAPL", "Consumer Discretionary")
-        assert cache.get_sector("AAPL") == "Consumer Discretionary"
+        cache.set_holding("AAPL", "Technology", False)
+        cache.set_holding("AAPL", "Consumer Discretionary", False)
+        assert cache.get_holding("AAPL") == ("Consumer Discretionary", False)

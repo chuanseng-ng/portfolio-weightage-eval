@@ -6,7 +6,6 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pandas as pd
-import yfinance as yf  # type: ignore[import-untyped]
 from pytest_mock import MockerFixture
 
 from src.models import Holding
@@ -218,20 +217,25 @@ class TestCaching:
 
     def test_second_call_for_same_ticker_hits_cache(self, mocker: MockerFixture) -> None:
         """yFinance called only once when same ticker appears twice."""
-        _mock_yf_info(mocker, "AAPL", sector="Technology", quote_type="EQUITY")
-        spy = mocker.patch("src.sector.fetcher.yf.Ticker", wraps=yf.Ticker)
+        ticker_mock = MagicMock()
+        ticker_mock.fast_info = {"quote_type": "EQUITY"}
+        ticker_mock.info = {"sector": "Technology", "longName": ""}
+
+        yf_patch = mocker.patch("src.sector.fetcher.yf.Ticker", return_value=ticker_mock)
+
         cache = SectorCache()
-        fetcher = SectorFetcher(cache)
-        fetcher.enrich([_make_holding("AAPL"), _make_holding("AAPL")])
-        # yf.Ticker should be called for ETF check + sector lookup on first hit only
-        assert spy.call_count <= 2  # ETF check + info - not doubled
+        SectorFetcher(cache).enrich([_make_holding("AAPL"), _make_holding("AAPL")])
+
+        # First AAPL: _is_etf + _yfinance_sector = 2 calls max
+        # Second AAPL: cache hit -> 0 additional calls
+        assert yf_patch.call_count <= 2
 
     def test_cache_populated_after_enrich(self, mocker: MockerFixture) -> None:
         """Sector is stored in cache after enrich."""
         _mock_yf_info(mocker, "AAPL", sector="Technology", quote_type="EQUITY")
         cache = SectorCache()
         SectorFetcher(cache).enrich([_make_holding("AAPL")])
-        assert cache.get_sector("AAPL") == "Technology"
+        assert cache.get_holding("AAPL") == ("Technology", False)
 
 
 # Edge cases
@@ -254,7 +258,7 @@ class TestEdgeCases:
         assert result[0].sector == "Technology"
 
     def test_all_taxonomy_sectors_covered(self) -> None:
-        """Spot-check that key yFianance sector strings are mapped."""
+        """Spot-check that key yFinance sector strings are mapped."""
         assert YFINANCE_SECTOR_MAP["Technology"] == "Technology"
         assert YFINANCE_SECTOR_MAP["Financial Services"] == "Financials"
         assert YFINANCE_SECTOR_MAP["Real Estate"] == "Real Estate (ex-REITs)"

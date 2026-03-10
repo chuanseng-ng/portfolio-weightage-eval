@@ -62,9 +62,9 @@ class SectorFetcher:
     # Resolution router method
     def _resolve(self, holding: Holding) -> tuple[str, bool]:
         """Return (sector, etf_lookthrough) for the given holding."""
-        cached = self._cache.get_sector(holding.ticker)
+        cached = self._cache.get_holding(holding.ticker)
         if cached is not None:
-            return cached, holding.etf_lookthrough
+            return cached
 
         if self._is_etf(holding.ticker):
             sector, lookthrough = self._resolve_etf(holding.ticker)
@@ -72,7 +72,7 @@ class SectorFetcher:
             sector = self._resolve_equity(holding)
             lookthrough = False
 
-        self._cache.set_sector(holding.ticker, sector)
+        self._cache.set_holding(holding.ticker, sector, lookthrough)
         return sector, lookthrough
 
     # ETF resolution method
@@ -126,26 +126,35 @@ class SectorFetcher:
     def _resolve_equity(self, holding: Holding) -> str:
         """Resolve sector for a non-ETF holding."""
         if holding.market in ("US", "UK", "EU", "JP"):
-            sector = self._yfinance_sector(holding.ticker)
+            sector, _ = self._yfinance_sector(holding.ticker)
             return sector if sector else "Unclassified"
 
-        # SG: 4-layer fallback
-        sector = (
-            self._yfinance_sector(holding.ticker)
-            or self._sgx_api_sector(holding.ticker)
-            or self._sgx_csv_sector(holding.ticker)
-            or "Unclassified"
-        )
-        return self._apply_reit_override(holding.ticker, sector)
+        if holding.market == "SG":
+            # SG: 4-layer fallback
+            sector, long_name = self._yfinance_sector(holding.ticker)
+            if not sector:
+                sector = (
+                    self._sgx_api_sector(holding.ticker)
+                    or self._sgx_csv_sector(holding.ticker)
+                    or "Unclassified"
+                )
+                long_name = ""  # longName only available from yFinance layer
+            return self._apply_reit_override(holding.ticker, sector, long_name)
+
+        # Unknown market: yFinance only, no SGX fallback or REIT override
+        sector, _ = self._yfinance_sector(holding.ticker)
+        return sector if sector else "Unclassified"
 
     # Layer 1 - yFinance
-    def _yfinance_sector(self, ticker: str) -> str | None:
-        """Return normalzied taxonomy sector from yFinance, or None."""
+    def _yfinance_sector(self, ticker: str) -> tuple[str | None, str]:
+        """Return normalized taxonomy sector from yFinance, or None."""
         try:
-            raw = yf.Ticker(ticker).info.get("sector", "")
-            return YFINANCE_SECTOR_MAP.get(str(raw))
+            info = yf.Ticker(ticker).info
+            raw = info.get("sector", "")
+            name = str(info.get("longName", ""))
+            return YFINANCE_SECTOR_MAP.get(str(raw)), name
         except (OSError, KeyError, TypeError, AttributeError):
-            return None
+            return None, ""
 
     # Layer 2 - SGX public API
     def _sgx_api_sector(self, ticker: str) -> str | None:
@@ -186,12 +195,11 @@ class SectorFetcher:
         return self._load_csv().get(ticker.upper())
 
     # REIT override (SG only)
-    def _apply_reit_override(self, ticker: str, sector: str) -> str:
+    def _apply_reit_override(self, ticker: str, sector: str, long_name: str = "") -> str:
         """
         Reclassify to 'REITs' if:
           - ticker contains 'REIT' (case-insensitive), OR
-          - resolved sector is Financials or Real Estate (ex-REITs)
-            and security appears to be a REIT by name
+          - longName indicates REIT
 
         This rule applies only to SG holdings (caller's responsibility).
         """
@@ -199,10 +207,7 @@ class SectorFetcher:
             return "REITs"
         if sector in _REIT_OVERRIDE_SECTORS:
             # Additional name-based check via yFinance longName
-            try:
-                name: str = yf.Ticker(ticker).info.get("longName", "")
-                if "REIT" in name.upper() or "REAL ESTATE INVEST" in name.upper():
-                    return "REITs"
-            except (OSError, KeyError, TypeError, AttributeError):
-                pass
+            upper_name = long_name.upper()
+            if "REIT" in upper_name or "REAL ESTATE INVEST" in upper_name:
+                return "REITs"
         return sector
