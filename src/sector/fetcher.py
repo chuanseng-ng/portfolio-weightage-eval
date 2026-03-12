@@ -20,7 +20,7 @@ from typing import Any
 import requests  # type: ignore[import-untyped]
 import yfinance as yf  # type: ignore[import-untyped]
 
-from src.models import Holding
+from src.models import Holding, detect_market
 from src.sector.cache import SectorCache
 
 YFINANCE_SECTOR_MAP: dict[str, str] = {
@@ -41,6 +41,16 @@ _REIT_OVERRIDE_SECTORS = {"Financials", "Real Estate (ex-REITs)"}
 _CSV_PATH = Path(__file__).parent.parent.parent / "data" / "sgx_sectors.csv"
 _SGX_API_URL = "https://api.sgx.com/securities/v1.1"
 _SGX_API_TIMEOUT = 5  # seconds
+_CSV_SECTOR_SYNONYMS: dict[str, str] = {
+    "Telecommunications": "Communication Services",
+    "Telecom": "Communication Services",
+    "Finance": "Financials",
+    "Banking": "Financials",
+    "Industrial": "Industrials",
+    "Real Estate Investment Trust": "REITs",
+    "Property": "Real Estate (ex-REITs)",
+    "Consumer": "Consumer Discretionary",
+}
 
 
 class SectorFetcher:
@@ -101,20 +111,24 @@ class SectorFetcher:
                 weight = float(row.get("holdingPercent", 0.0))
                 if weight <= 0:
                     continue
-                constituent_sector = self._resolve_equity(
-                    Holding(
-                        ticker=str(constituent_ticker),
-                        market="US",
-                        quantity=0,
-                        price=0,
-                        currency="USD",
-                    )
+
+                ticker_str = str(constituent_ticker)
+                market = detect_market(ticker_str)
+                currency = "SGD" if market == "SG" else ("GBP" if market == "UK" else "USD")
+                constituent_holding = Holding(
+                    ticker=ticker_str,
+                    market=market,
+                    quantity=0,
+                    price=0,
+                    currency=currency,
                 )
+                constituent_sector, _ = self._resolve(constituent_holding)
                 weights[constituent_sector] = weights.get(constituent_sector, 0.0) + weight
 
             if not weights:
                 return "ETF Broad Market", False
 
+            # TODO(PR 8): Implement proportional ETF sector weight distribution (top 20 holdings)
             # Return dominant sector (highest combined weight)
             dominant = max(weights, key=lambda s: weights[s])
             return dominant, True
@@ -170,7 +184,14 @@ class SectorFetcher:
             if response.status_code != 200:
                 return None
             data: Any = response.json()
-            raw_sector: str = data.get("data", {}).get("items", [{}])[0].get("category", "")
+            item: dict[str, Any] = data.get("data", {}).get("items", [{}])[0]
+            raw_sector: str = item.get("category", "")
+            name: str = item.get("name", "") + " " + item.get("description", "")
+
+            # REIT check before taxonomy map - SGX categories are not GICS-aligned
+            if "REIT" in raw_sector.upper() or "REIT" in name.upper():
+                return "REITs"
+
             return YFINANCE_SECTOR_MAP.get(raw_sector)
         except (OSError, ValueError, KeyError, IndexError):
             return None
@@ -184,7 +205,9 @@ class SectorFetcher:
         try:
             with _CSV_PATH.open(newline="", encoding="utf-8") as fh:
                 for row in csv.DictReader(fh):
-                    mapping[row["ticker"].strip().upper()] = row["sector"].strip()
+                    raw = row["sector"].strip()
+                    canonical = _CSV_SECTOR_SYNONYMS.get(raw, raw)
+                    mapping[row["ticker"].strip().upper()] = canonical
         except (OSError, KeyError, csv.Error):
             pass
         self._csv_data = mapping
