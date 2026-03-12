@@ -179,6 +179,7 @@ Excel / API  →    Ticker + Market   →   Sector (yF/SGX/CSV)  →  Sector wei
 | 5 | **Output & Reporting** | Generate JSON reports and/or upload results to Supabase |
 | 6 | **Historical Tracking** | Store and display sector weightage shifts across monthly iterations |
 | 7 | **Scheduling** | Automate monthly execution (cron, scheduler, or workflow trigger) |
+| 8 | **ETF Look-Through** | Replace dominant-sector approximation with proportional sector allocation for ETF holdings |
 
 ---
 
@@ -325,6 +326,25 @@ Expected contents:
 Acceptance criteria:
 - Scheduler fires on the configured cadence without manual intervention
 - Failures are surfaced through the notification channel, not silently swallowed
+
+---
+
+### PR 8 — ETF Look-Through Sector Weightage
+**Goal**: Replace the dominant-sector approximation with true proportional sector allocation for ETF holdings.
+
+Expected contents:
+- `src/models.py`: add `etf_sector_weights: dict[str, float]` field to `Holding` (populated when `etf_lookthrough=True`; keys are sector names; values are fractional weights summing ≤ 1.0)
+- `src/sector/fetcher.py`: `_resolve_etf` returns `tuple[dict[str, float], bool]` — full weight map + flag; cap look-through to top 20 holdings; `holding.sector` set to `"ETF Broad Market"` for all ETF holdings; remove TODO(PR 8) comment
+- `src/evaluation/calculator.py` (PR 4): distribute `holding_weight × etf_sector_weights[sector]` across sectors for ETF holdings with `etf_lookthrough=True`; assign full weight to `"ETF Broad Market"` when `etf_lookthrough=False`
+- `output/reporter.py` (PR 5): include `etf_sector_weights` dict in JSON snapshot `holdings` entries for ETF holdings
+- `tests/`: update `test_sector_fetcher.py` (assert `etf_sector_weights` dict), `test_calculator.py` (proportional ETF expansion), and `test_reporter.py` (assert `etf_sector_weights` in JSON output)
+
+Acceptance criteria:
+- ETF holdings with look-through yield `etf_sector_weights` dict summing ≤ 1.0
+- Portfolio sector percentages sum to 100% including proportional ETF expansion
+- ETF holdings without look-through data contribute 100% to `"ETF Broad Market"`
+- No live API calls during tests
+- Coverage ≥ 85%
 
 ---
 

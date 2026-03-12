@@ -13,7 +13,7 @@ class SectorCache:
 
     def __init__(self) -> None:
         self._holdings: dict[str, tuple[str, bool]] = {}  # ticker -> (sector, lookthrough)
-        self.fx_rates: FxRates | None = None
+        self._fx_rates: FxRates | None = None
 
     def get_holding(self, ticker: str) -> tuple[str, bool] | None:
         """Return cached (sector, etf_lookthrough) for the given ticker, or None if not found."""
@@ -25,13 +25,13 @@ class SectorCache:
 
     def get_fx_rates(self) -> FxRates | None:
         """Return the cached FX rates, or None if not available."""
-        return self.fx_rates
+        return self._fx_rates
 
     def set_fx_rates(self, rates: FxRates) -> None:
         """Cache the FX rates."""
-        self.fx_rates = rates
+        self._fx_rates = rates
 
     def clear(self) -> None:
         """Clear all cached data."""
         self._holdings.clear()
-        self.fx_rates = None
+        self._fx_rates = None

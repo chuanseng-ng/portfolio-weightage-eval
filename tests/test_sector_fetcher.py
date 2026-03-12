@@ -163,7 +163,6 @@ class TestReitOverride:
 class TestEtfLookthrough:
     """Test class for ETF look-through"""
 
-    # TODO: Change etf-lookthrough to calculate top 20 fund holding sector %
     def test_etf_with_holdings_use_lookthrough(self, mocker: MockerFixture) -> None:
         """ETF with available fund holdings -> etf_lookthrough=True, dominant sector."""
         df = pd.DataFrame({"holdingPercent": [0.07, 0.06]}, index=["AAPL", "MSFT"])
@@ -228,7 +227,7 @@ class TestCaching:
 
         # First AAPL: _is_etf + _yfinance_sector = 2 calls max
         # Second AAPL: cache hit -> 0 additional calls
-        assert yf_patch.call_count <= 2
+        assert yf_patch.call_count == 2
 
     def test_cache_populated_after_enrich(self, mocker: MockerFixture) -> None:
         """Sector is stored in cache after enrich."""
