@@ -6,6 +6,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pandas as pd
+import requests
 from pytest_mock import MockerFixture
 
 from src.models import Holding
@@ -106,7 +107,7 @@ class TestSgxFallbackChain:
     def test_sgx_api_timeout_falls_through_to_csv(self, mocker: MockerFixture) -> None:
         """SGX API timeout treated as layer 2 miss."""
         _mock_yf_info(mocker, "X99.SI", sector=None, quote_type="EQUITY")
-        mocker.patch("src.sector.fetcher.requests.get", side_effect=TimeoutError)
+        mocker.patch("src.sector.fetcher.requests.get", side_effect=requests.exceptions.Timeout)
         mocker.patch.object(SectorFetcher, "_load_csv", return_value={"X99.SI": "Industrials"})
         result = _fetcher().enrich([_make_holding("X99.SI", "SG", "SGD")])
         assert result[0].sector == "Industrials"

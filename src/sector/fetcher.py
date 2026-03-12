@@ -17,7 +17,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-import requests  # type: ignore[import-untyped]
+import requests
 import yfinance as yf  # type: ignore[import-untyped]
 
 from src.models import Holding, detect_market
@@ -49,6 +49,11 @@ _CSV_SECTOR_SYNONYMS: dict[str, str] = {
     "Industrial": "Industrials",
     "Real Estate Investment Trust": "REITs",
     "Property": "Real Estate (ex-REITs)",
+    # SGX CSV uses "Consumer Goods" and "Consumer Services"; "Consumer" alone is a
+    # conservative fallback assumed to mean Discretionary - verify against the
+    # bundled CSV Before relying on this mapping
+    "Consumer Goods": "Consumer Discretionary",
+    "Consumer Services": "Consumer Discretionary",
     "Consumer": "Consumer Discretionary",
 }
 
@@ -193,7 +198,7 @@ class SectorFetcher:
                 return "REITs"
 
             return YFINANCE_SECTOR_MAP.get(raw_sector)
-        except (OSError, ValueError, KeyError, IndexError):
+        except (OSError, ValueError, KeyError, IndexError, requests.exceptions.RequestException):
             return None
 
     # Layer 3 - Static CSV
