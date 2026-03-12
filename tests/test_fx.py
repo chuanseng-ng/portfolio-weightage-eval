@@ -17,16 +17,10 @@ class TestFxFetcher:
         """Successful fetch returns FxRates with correct values."""
 
         def mock_fast_info(symbol: str) -> Any:
+            prices = {"USD": 1.34, "GBP": 1.23, "EUR": 1.56, "JPY": 0.0091}
             ticker = mocker.MagicMock()
-            ticker.fast_info = {
-                "last_price": 1.34
-                if "USD" in symbol
-                else 1.23
-                if "GBP" in symbol
-                else 1.56
-                if "EUR" in symbol
-                else 0.0091
-            }
+            key = next((k for k in prices if k in symbol), None)
+            ticker.fast_info = {"last_price": prices[key] if key else 0.0}
             return ticker
 
         mocker.patch("src.sector.fx.yf.Ticker", side_effect=mock_fast_info)
@@ -43,10 +37,10 @@ class TestFxFetcher:
         def mock_fast_info(symbol: str) -> Any:
             if "USD" in symbol:
                 raise OSError("API error")
+            prices = {"USD": 1.34, "GBP": 1.23, "EUR": 1.56, "JPY": 0.0091}
             ticker = mocker.MagicMock()
-            ticker.fast_info = {
-                "last_price": 1.23 if "GBP" in symbol else 1.56 if "EUR" in symbol else 0.0091
-            }
+            key = next((k for k in prices if k in symbol), None)
+            ticker.fast_info = {"last price": prices[key] if key else 0.0}
             return ticker
 
         mocker.patch("src.sector.fx.yf.Ticker", side_effect=mock_fast_info)
@@ -60,10 +54,10 @@ class TestFxFetcher:
         def mock_fast_info(symbol: str) -> Any:
             if "GBP" in symbol:
                 raise OSError("API error")
+            prices = {"USD": 1.34, "GBP": 1.23, "EUR": 1.56, "JPY": 0.0091}
             ticker = mocker.MagicMock()
-            ticker.fast_info = {
-                "last_price": 1.34 if "USD" in symbol else 1.56 if "EUR" in symbol else 0.0091
-            }
+            key = next((k for k in prices if k in symbol), None)
+            ticker.fast_info = {"last price": prices[key] if key else 0.0}
             return ticker
 
         mocker.patch("src.sector.fx.yf.Ticker", side_effect=mock_fast_info)
@@ -77,10 +71,10 @@ class TestFxFetcher:
         def mock_fast_info(symbol: str) -> Any:
             if "EUR" in symbol:
                 raise OSError("API error")
+            prices = {"USD": 1.34, "GBP": 1.23, "EUR": 1.56, "JPY": 0.0091}
             ticker = mocker.MagicMock()
-            ticker.fast_info = {
-                "last_price": 1.34 if "USD" in symbol else 1.23 if "GBP" in symbol else 0.0091
-            }
+            key = next((k for k in prices if k in symbol), None)
+            ticker.fast_info = {"last price": prices[key] if key else 0.0}
             return ticker
 
         mocker.patch("src.sector.fx.yf.Ticker", side_effect=mock_fast_info)
@@ -94,10 +88,10 @@ class TestFxFetcher:
         def mock_fast_info(symbol: str) -> Any:
             if "JPY" in symbol:
                 raise OSError("API error")
+            prices = {"USD": 1.34, "GBP": 1.23, "EUR": 1.56, "JPY": 0.0091}
             ticker = mocker.MagicMock()
-            ticker.fast_info = {
-                "last_price": 1.34 if "USD" in symbol else 1.23 if "GBP" in symbol else 1.56
-            }
+            key = next((k for k in prices if k in symbol), None)
+            ticker.fast_info = {"last price": prices[key] if key else 0.0}
             return ticker
 
         mocker.patch("src.sector.fx.yf.Ticker", side_effect=mock_fast_info)
