@@ -1,0 +1,37 @@
+"""In-memory cache for sector lookups and FX rates within a single run."""
+
+from src.sector.fx import FxRates
+
+
+class SectorCache:
+    """
+    Caches sector strings and FX rates for the duration of a single run.
+
+    Avoids redundant yFinance / SGX API calls when the same ticker
+    appears multiple times in the portfolio.
+    """
+
+    def __init__(self) -> None:
+        self._holdings: dict[str, tuple[str, bool]] = {}  # ticker -> (sector, lookthrough)
+        self._fx_rates: FxRates | None = None
+
+    def get_holding(self, ticker: str) -> tuple[str, bool] | None:
+        """Return cached (sector, etf_lookthrough) for the given ticker, or None if not found."""
+        return self._holdings.get(ticker)
+
+    def set_holding(self, ticker: str, sector: str, lookthrough: bool) -> None:
+        """Cache the resolved sector and etf_lookthrough for the given ticker."""
+        self._holdings[ticker] = (sector, lookthrough)
+
+    def get_fx_rates(self) -> FxRates | None:
+        """Return the cached FX rates, or None if not available."""
+        return self._fx_rates
+
+    def set_fx_rates(self, rates: FxRates) -> None:
+        """Cache the FX rates."""
+        self._fx_rates = rates
+
+    def clear(self) -> None:
+        """Clear all cached data."""
+        self._holdings.clear()
+        self._fx_rates = None

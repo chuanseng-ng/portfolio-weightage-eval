@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import zipfile
 from pathlib import Path
 from typing import BinaryIO
 
@@ -21,7 +22,7 @@ class ExcelParser:
         """Parse the given Excel file and return a list of Holding objects."""
         try:
             df = pd.read_excel(source, engine="openpyxl")
-        except Exception as exc:
+        except (OSError, ValueError, zipfile.BadZipFile) as exc:
             raise ValidationError(f"Failed to read Excel file: {exc}") from exc
 
         # Normalize column names

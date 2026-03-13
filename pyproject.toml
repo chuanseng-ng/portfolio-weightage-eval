@@ -8,6 +8,7 @@ dependencies = [
     "pandas>=2.2",
     "openpyxl>=3.1",
     "ib-insync>=0.9",
+    "yfinance>=0.2",
 ]
 
 [dependency-groups]
@@ -19,6 +20,7 @@ dev = [
     "pytest-asyncio==0.25.2",
     # Development Tools
     "mypy>=1.10",
+    "types-requests>=2.31",
     "pylint==4.0.3",
     "pandas-stubs>=2.2",
     "pre-commit>=4.5.1",
